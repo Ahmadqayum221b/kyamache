@@ -1,0 +1,31 @@
+name = "kymacache-worker"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ─── KV Namespace ────────────────────────────────────────────────────────────
+# Create with: wrangler kv namespace create KYMACACHE_KV
+# Then paste the id below
+[[kv_namespaces]]
+binding = "KYMACACHE_KV"
+id = "6b16bc52ed73491e945a8ef2622bef01"
+
+# ─── Environment Variables ────────────────────────────────────────────────────
+# Set secrets via CLI:
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_KEY
+#   wrangler secret put B2_KEY_ID
+#   wrangler secret put B2_APP_KEY
+#   wrangler secret put B2_BUCKET_ID
+#   wrangler secret put B2_BUCKET_NAME
+#   wrangler secret put KIMI_API_KEY
+[vars]
+ENVIRONMENT = "production"
+KV_TTL = "3600"          # seconds entries stay in KV cache
+MAX_FILE_SIZE = "10485760"  # 10 MB
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
+# Uncomment and set your domain after deploying:
+# [[routes]]
+# pattern = "api.yourdomain.com/*"
+# zone_name = "yourdomain.com"
