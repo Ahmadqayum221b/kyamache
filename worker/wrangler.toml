@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 # Then paste the id below
 [[kv_namespaces]]
 binding = "KYMACACHE_KV"
-id = "6b16bc52ed73491e945a8ef2622bef01"
+id = "1b6d9b99a13549398fd57e69d422fdab"
 
 # ─── Environment Variables ────────────────────────────────────────────────────
 # Set secrets via CLI:
