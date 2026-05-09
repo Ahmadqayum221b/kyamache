@@ -79,6 +79,8 @@ body {
 .nav-item.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
 .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
 .nav-item.active svg { opacity: 1; }
+#trash-nav-item.active { background: #fee4e2; color: #d92d20; }
+#trash-nav-item.active svg { color: #d92d20; }
 
 .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .main-header { height: 64px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
@@ -109,16 +111,29 @@ body {
 .card-header { display: flex; justify-content: space-between; align-items: center; min-height: 24px; }
 .pin-badge { background: #fdf2fa; color: #c11574; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
 
-.card-actions { display: flex; gap: 6px; opacity: 0; transition: var(--transition); }
+.card-actions { 
+  display: flex; gap: 4px; opacity: 0.2; transition: var(--transition); 
+  background: rgba(255,255,255,0.8); backdrop-filter: blur(8px);
+  padding: 4px; border-radius: 8px; border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+@media (max-width: 768px) {
+  .card-actions { opacity: 1; background: transparent; border: none; box-shadow: none; }
+}
+@media (prefers-color-scheme: dark) {
+  .card-actions { background: rgba(0,0,0,0.6); }
+}
 .entry-card:hover .card-actions { opacity: 1; }
 
 .card-btn { 
-  background: var(--bg); border: 1px solid var(--border); padding: 5px 10px; 
+  background: transparent; border: none; padding: 6px; 
   border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--muted); 
-  font-weight: 500; display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; justify-content: center; transition: all var(--transition);
 }
-.card-btn:hover { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
-.star-btn.active { color: #f79009; border-color: #f79009; background: #fffcf5; }
+.card-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.card-btn.danger-hover:hover { background: #fee4e2; color: var(--danger); }
+.star-btn.active { color: #f79009; }
+.star-btn.active:hover { background: #fffcf5; }
 
 .entry-content { 
   font-size: 15px; line-height: 1.6; color: var(--text); font-weight: 400; 
