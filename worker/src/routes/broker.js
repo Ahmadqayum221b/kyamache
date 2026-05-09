@@ -7,26 +7,20 @@
 
 import { makeB2 }       from '../lib/b2.js';
 import { makeSupabase } from '../lib/supabase.js';
+import { json }         from '../lib/response.js';
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type':                'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
-
-export async function handleBroker(request, env, ctx, url) {
+export async function handleBroker(request, env, ctx, url, user) {
   const b2 = makeB2(env);
   const db = makeSupabase(env);
   const path = url.pathname;
 
+  const authHeader = request.headers.get('Authorization');
+  const userToken  = authHeader.split(' ')[1]; // Verified by index.js
+
   // ── POST /upload-init ──────────────────────────────────────────────────────
   if (path === '/upload-init' && request.method === 'POST') {
     const { filename, size, mime } = await request.json();
-    if (!filename || !size || !mime) return json({ error: 'Missing required fields' }, 400);
+    if (!filename || !size || !mime) return json({ error: 'Missing required fields' }, 400, request, env);
 
     // Build unique key
     const now    = new Date();
@@ -47,9 +41,9 @@ export async function handleBroker(request, env, ctx, url) {
         upload_url: uploadUrlResult.uploadUrl,
         upload_auth_token: uploadUrlResult.authorizationToken,
         file_key: key,
-      });
+      }, 200, request, env);
     } catch (err) {
-      return json({ error: 'Failed to generate upload URL', detail: err.message }, 500);
+      return json({ error: 'Failed to generate upload URL', detail: err.message }, 500, request, env);
     }
   }
 
@@ -66,7 +60,7 @@ export async function handleBroker(request, env, ctx, url) {
       ai_metadata:  { b2_file_id: file_id, size, direct_upload: true },
       ai_status:    'pending',
       status:       'active'
-    });
+    }, userToken);
 
     // Trigger processing
     ctx.waitUntil(fetch(`${env.WORKER_SELF_URL || 'http://localhost'}/process/${entry.id}`, {
@@ -74,8 +68,8 @@ export async function handleBroker(request, env, ctx, url) {
       body: JSON.stringify({ trigger: 'broker' })
     }));
 
-    return json(entry, 201);
+    return json(entry, 201, request, env);
   }
 
-  return json({ error: 'Not found' }, 404);
+  return json({ error: 'Not found' }, 404, request, env);
 }

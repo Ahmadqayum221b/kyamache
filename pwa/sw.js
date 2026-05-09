@@ -44,9 +44,15 @@ self.addEventListener('fetch', event => {
   // App shell: cache-first
   event.respondWith(
     caches.match(event.request).then(cached => {
-      return cached ?? fetch(event.request).then(response => {
-        if (response.ok) {
-          caches.open(CACHE_NAME).then(c => c.put(event.request, response.clone()));
+      if (cached) return cached;
+      
+      return fetch(event.request).then(response => {
+        // Only cache GET responses from our own origin
+        if (response.ok && event.request.method === 'GET') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
         }
         return response;
       });

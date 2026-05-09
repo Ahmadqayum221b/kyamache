@@ -23,6 +23,8 @@ id = "1b6d9b99a13549398fd57e69d422fdab"
 ENVIRONMENT = "production"
 KV_TTL = "3600"          # seconds entries stay in KV cache
 MAX_FILE_SIZE = "10485760"  # 10 MB
+WORKER_SELF_URL = "https://kymacache-worker.asghar78ali91.workers.dev"
+FRONTEND_URL = "https://kymacache-7d2.pages.dev"
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 # Uncomment and set your domain after deploying:

@@ -7,20 +7,11 @@
  */
 
 import { makeSupabase } from '../lib/supabase.js';
+import { json } from '../lib/response.js';
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type':                'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
-
-export async function handleSearch(request, env, ctx, url) {
+export async function handleSearch(request, env, ctx, url, user) {
   if (request.method !== 'GET') {
-    return json({ error: 'Method not allowed' }, 405);
+    return json({ error: 'Method not allowed' }, 405, request, env);
   }
 
   const q      = url.searchParams.get('q')?.trim() ?? '';
@@ -30,19 +21,19 @@ export async function handleSearch(request, env, ctx, url) {
   const limit  = Math.min(Number(url.searchParams.get('limit') ?? 20), 100);
 
   if (!q && labels.length === 0) {
-    return json({ error: 'Provide at least one of: q, labels' }, 400);
+    return json({ error: 'Provide at least one of: q, labels' }, 400, request, env);
   }
 
   const db      = makeSupabase(env);
   const authHeader = request.headers.get('Authorization');
-  const userToken  = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+  const userToken  = authHeader.split(' ')[1]; // Verified by index.js
 
-  const results = await db.search('entries', q, labels, userToken);
-
+  // Use service key to bypass broken RLS recursion, but filter by user.id explicitly
+  const results = await db.search('entries', q, labels, null, user.id);
   return json({
     query:   q,
     labels,
     count:   results.length,
     results: results.slice(0, limit),
-  });
+  }, 200, request, env);
 }

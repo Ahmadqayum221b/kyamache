@@ -5,16 +5,7 @@
  */
 
 import { makeB2 } from '../lib/b2.js';
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type':                'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
+import { json } from '../lib/response.js';
 
 const ALLOWED_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -23,49 +14,67 @@ const ALLOWED_TYPES = new Set([
   'application/octet-stream',
 ]);
 
-export async function handleFile(request, env, ctx, url) {
+export async function handleFile(request, env, ctx, url, user) {
   const parts = url.pathname.split('/').filter(Boolean); // ['file', key?, 'signed'?]
   const b2    = makeB2(env);
 
+  const authHeader = request.headers.get('Authorization');
+  const userToken  = authHeader.split(' ')[1]; // Verified by index.js
+
   // ── GET /file/:key/signed ────────────────────────────────────────────────
-  if (request.method === 'GET') {
-    const key = decodeURIComponent(parts.slice(1, -1).join('/'));
-    if (!key) return json({ error: 'Missing file key' }, 400);
+  if (request.method === 'GET' && parts.length >= 2) {
+    const pathMatch = url.pathname.match(/^\/file\/(.+)\/signed$/);
+    if (!pathMatch) return json({ error: 'Invalid file route' }, 400, request, env);
+    const key = pathMatch[1];
+
+    // Ownership validation
+    if (!key.startsWith(`uploads/${user.sub}/`)) {
+      return json({ error: 'Forbidden: You do not own this file' }, 403, request, env);
+    }
 
     const signedUrl = await b2.getDownloadUrl(key, 3600);
-    return json({ signed_url: signedUrl, expires_in: 3600 });
+    return json({ signed_url: signedUrl, expires_in: 3600 }, 200, request, env);
   }
 
   // ── POST /file ────────────────────────────────────────────────────────────
   if (request.method === 'POST') {
+    // Basic Rate Limiting (Task 4)
+    if (env.KYMACACHE_KV) {
+      const userIp = request.headers.get('cf-connecting-ip') || 'anon';
+      const rateKey = `rate:upload:${userIp}`;
+      const count = Number(await env.KYMACACHE_KV.get(rateKey) || 0);
+      if (count > 10) return json({ error: 'Rate limit exceeded' }, 429, request, env);
+      await env.KYMACACHE_KV.put(rateKey, count + 1, { expirationTtl: 60 });
+    }
+
     const maxBytes = Number(env.MAX_FILE_SIZE ?? 10 * 1024 * 1024);
 
     // Expect multipart/form-data
     const formData = await request.formData().catch(() => null);
     if (!formData) {
-      return json({ error: 'Expected multipart/form-data' }, 400);
+      return json({ error: 'Expected multipart/form-data' }, 400, request, env);
     }
 
     const file = formData.get('file');
     if (!file || typeof file === 'string') {
-      return json({ error: 'Form field `file` is missing or not a file' }, 400);
+      return json({ error: 'Form field `file` is missing or not a file' }, 400, request, env);
     }
 
     // Validate size
     const buffer = await file.arrayBuffer();
     if (buffer.byteLength > maxBytes) {
-      return json({ error: `File too large. Max ${maxBytes} bytes.` }, 413);
+      return json({ error: `File too large. Max ${maxBytes} bytes.` }, 413, request, env);
     }
 
     // Validate MIME type (allow override via field)
     const mimeType = formData.get('mime_type') ?? file.type ?? 'application/octet-stream';
     if (!ALLOWED_TYPES.has(mimeType) && !mimeType.startsWith('image/')) {
-      return json({ error: `Unsupported file type: ${mimeType}` }, 415);
+      return json({ error: `Unsupported file type: ${mimeType}` }, 415, request, env);
     }
 
-    // Build a unique key: uploads/<year>/<month>/<uuid>/<filename>
+    // Build a unique key: uploads/<user_id>/<year>/<month>/<uuid>/<filename>
     const now    = new Date();
-    const folder = `uploads/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const folder = `uploads/${user.sub}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
     const uid    = crypto.randomUUID();
     const name   = (file.name ?? 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
     const key    = `${folder}/${uid}/${name}`;
@@ -78,8 +87,8 @@ export async function handleFile(request, env, ctx, url) {
       file_id:   result.fileId,
       mime_type: mimeType,
       size:      buffer.byteLength,
-    }, 201);
+    }, 201, request, env);
   }
 
-  return json({ error: 'Method not allowed' }, 405);
+  return json({ error: 'Method not allowed' }, 405, request, env);
 }

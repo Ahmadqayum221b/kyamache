@@ -15,31 +15,22 @@ import { makeSupabase }       from '../lib/supabase.js';
 import { classifyWithKimi }   from '../lib/kimi.js';
 import { kvSet, kvDelete }    from '../lib/kv.js';
 import { makeB2 }             from '../lib/b2.js';
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type':                'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
+import { json }               from '../lib/response.js';
 
 export async function handleProcess(request, env, ctx, url) {
   if (request.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405);
+    return json({ error: 'Method not allowed' }, 405, request, env);
   }
 
   const parts   = url.pathname.split('/').filter(Boolean);
   const entryId = parts[1];
-  if (!entryId) return json({ error: 'Missing entry id' }, 400);
+  if (!entryId) return json({ error: 'Missing entry id' }, 400, request, env);
 
   const db = makeSupabase(env);
 
   // Fetch the entry
   const entry = await db.selectOne('entries', entryId);
-  if (!entry) return json({ error: 'Entry not found' }, 404);
+  if (!entry) return json({ error: 'Entry not found' }, 404, request, env);
 
   // Mark as processing
   await db.update('entries', entryId, { 
@@ -84,11 +75,8 @@ export async function handleProcess(request, env, ctx, url) {
 
       const ai = await classifyWithKimi(context, env.KIMI_API_KEY);
 
-      // Update budget (rough estimate: 1 cent per classification for now)
-      await db.insert('daily_budget', { 
-        day: today, 
-        cost_cents: (budget.cost_cents || 0) + 1 
-      }); // upsert handled by Supabase if primary key matches
+      // Update budget (atomic increment via RPC)
+      await db.rpcIncrement(today);
 
       // Build and upload JSON artifact to B2
       const artifact = {
@@ -116,7 +104,6 @@ export async function handleProcess(request, env, ctx, url) {
 
       // 4. Update Supabase
       const updated = await db.update('entries', entryId, {
-        content:        null, // Clear raw content after archiving
         content_hash:   contentHash,
         artifact_url:   b2Result.publicUrl,
         ai_summary:     ai.summary  ?? null,
@@ -143,10 +130,12 @@ export async function handleProcess(request, env, ctx, url) {
       console.log(`[process] classified entry ${entryId}: labels=${ai.labels?.join(',')}`);
     } catch (err) {
       console.error(`[process] classification failed for ${entryId}:`, err.message);
+      // Re-fetch to get latest attempts
+      const fresh = await db.selectOne('entries', entryId);
       await db.update('entries', entryId, { 
         ai_status:      'failed',
         tagging_status: 'failed',
-        tagging_attempts: (entry.tagging_attempts || 0) + 1
+        tagging_attempts: (fresh?.tagging_attempts || 0) + 1
       });
       await kvDelete(env.KYMACACHE_KV, entryId);
     }
@@ -160,5 +149,5 @@ export async function handleProcess(request, env, ctx, url) {
     accepted: true,
     entry_id: entryId,
     message:  'AI classification queued',
-  }, 202);
+  }, 202, request, env);
 }
