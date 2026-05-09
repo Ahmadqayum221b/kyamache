@@ -62,6 +62,27 @@ async function initAuth() {
   supabase.auth.onAuthStateChange((_event, session) => updateUser(session?.user));
 
   $('auth-form').addEventListener('submit', handleAuthSubmit);
+  
+  $('auth-toggle-link').addEventListener('click', e => {
+    e.preventDefault();
+    const title = $('auth-title');
+    const submit = $('auth-submit');
+    const toggle = $('auth-toggle-link');
+    if (submit.textContent === 'Sign In') {
+      title.textContent = 'Create account';
+      submit.textContent = 'Sign Up';
+      toggle.textContent = 'Sign In';
+    } else {
+      title.textContent = 'Welcome back';
+      submit.textContent = 'Sign In';
+      toggle.textContent = 'Sign Up';
+    }
+  });
+
+  $('google-auth-btn').addEventListener('click', () => {
+    supabase.auth.signInWithOAuth({ provider: 'google' });
+  });
+
   $('user-profile').addEventListener('click', async () => { if (confirm('Sign out?')) await supabase.auth.signOut(); });
 }
 
@@ -81,10 +102,18 @@ async function handleAuthSubmit(e) {
   e.preventDefault();
   const email = $('auth-email').value;
   const password = $('auth-password').value;
+  const isSignUp = $('auth-submit').textContent === 'Sign Up';
+
   try {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error, data } = isSignUp
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+
     if (error) throw error;
-  } catch (err) { toast(err.message, 'error'); }
+    if (isSignUp) toast('Check your email for confirmation!', 'success');
+  } catch (err) { 
+    toast(err.message, 'error'); 
+  }
 }
 
 // ── Sidebar & Collections ──────────────────────────────────────────────────────
