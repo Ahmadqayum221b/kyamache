@@ -39,9 +39,11 @@ export default {
       const isEntryGet = path.startsWith('/entries/') && request.method === 'GET' && path.split('/').length === 3;
       const isPublic = path === '/health' || path.startsWith('/process') || isEntryGet;
       
-      if (!isPublic) {
+      // Try to get user if header is present, even on public-compatible routes
+      const hasAuth = !!request.headers.get('Authorization');
+      if (hasAuth || !isPublic) {
         user = await getUser(request, env);
-        if (!user) return json({ error: 'Unauthorized' }, 401, request, env);
+        if (!user && !isPublic) return json({ error: 'Unauthorized' }, 401, request, env);
       }
 
       // 2. Route dispatch

@@ -87,8 +87,12 @@ export class SupabaseClient {
       headers: this._headers({}, userToken),
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error(`Supabase patch failed: ${res.status} ${await res.text()}`);
-    const rows = await res.json();
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[supabase] PATCH failed: ${res.status}`, errText);
+      throw new Error(`Supabase patch failed: ${res.status} ${errText}`);
+    }
+    const rows = await res.json().catch(() => []);
     return Array.isArray(rows) ? rows[0] : rows;
   }
 

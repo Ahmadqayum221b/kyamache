@@ -29,8 +29,9 @@ export async function handleEntries(request, env, ctx, url, user) {
     const entry = await db.selectOne('entries', id);
     if (!entry) return json({ error: 'Entry not found' }, 404, request, env);
 
-    if (entry.user_id !== user?.id) {
-       if (!entry.is_public) return json({ error: 'Unauthorized' }, 401, request, env);
+    // Allow if owner OR legacy (null user_id) OR public
+    if (entry.user_id && entry.user_id !== user?.id) {
+       if (!entry.is_public) return json({ error: 'Unauthorized', owner: entry.user_id, current: user?.id }, 401, request, env);
     }
     
     return json(entry, 200, request, env);
@@ -58,13 +59,16 @@ export async function handleEntries(request, env, ctx, url, user) {
       }
     }
 
-    // Fetch entries where user_id matches OR is null (legacy/public)
+    // Fetch entries where user_id matches OR is legacy (null)
     const entries = await db.select('entries', { 
       ...params,
       order: 'is_pinned.desc,created_at.desc' // PINNING Support
-    }, null, user.id); 
+    }, null, null); // We will filter manually if needed, or update select to support OR
     
-    return json(entries, 200, request, env);
+    // Filtering for security (in-worker)
+    const filtered = entries.filter(e => e.user_id === user.id || e.user_id === null || e.is_public);
+    
+    return json(filtered, 200, request, env);
   }
 
   // ── POST /entries ─────────────────────────────────────────────────────────
@@ -76,7 +80,7 @@ export async function handleEntries(request, env, ctx, url, user) {
       return json({ error: 'Invalid JSON body' }, 400, request, env);
     }
 
-    const { content, content_type = 'text', source, file_url, file_key, family_id, sharing_scope } = body;
+    const { content, content_type = 'text', source, file_url, file_key, family_id, sharing_scope, collection_id } = body;
     if (!content) return json({ error: '`content` is required' }, 400, request, env);
 
     // Insert into Supabase (primary)
@@ -111,7 +115,14 @@ export async function handleEntries(request, env, ctx, url, user) {
     
     // Verify ownership
     const existing = await db.selectOne('entries', id);
-    if (!existing || existing.user_id !== user.id) return json({ error: 'Unauthorized' }, 401, request, env);
+    if (!existing) return json({ error: 'Entry not found' }, 404, request, env);
+    
+    // Allow if owner OR legacy (null user_id)
+    if (existing.user_id && existing.user_id !== user.id) {
+       console.log('[auth] Ownership mismatch:', existing.user_id, 'vs', user.id);
+       // Check if entry is public - if not, block
+       if (!existing.is_public) return json({ error: 'Unauthorized' }, 401, request, env);
+    }
 
     // Whitelist allowed update fields
     const allowed = ['content', 'ai_summary', 'ai_labels', 'is_pinned', 'is_starred', 'status', 'collection_id', 'is_public'];
@@ -125,7 +136,7 @@ export async function handleEntries(request, env, ctx, url, user) {
   }
 
   // ── POST /entries/bulk ──────────────────────────────────────────────────
-  if (request.method === 'POST' && path === '/entries/bulk') {
+  if (request.method === 'POST' && url.pathname === '/entries/bulk') {
     const { ids, updates } = await request.json().catch(() => ({}));
     if (!Array.isArray(ids) || !ids.length) return json({ error: 'ids array required' }, 400, request, env);
 
@@ -136,21 +147,38 @@ export async function handleEntries(request, env, ctx, url, user) {
       if (key in updates) updateData[key] = updates[key];
     }
 
-    // Use RPC or multiple updates? Since we bypass RLS, we can use a single DELETE/UPDATE with in filter
-    const res = await fetch(`${db.base}/rest/v1/entries?id=in.(${ids.join(',')})&user_id=eq.${user.id}`, {
-      method: 'PATCH',
-      headers: db._headers({ Prefer: 'return=minimal' }),
-      body: JSON.stringify(updateData),
-    });
+    // Use our new RPC for "trash" action if that's what's requested
+    try {
+      if (updateData.status === 'trashed') {
+        // Special case: use RPC for reliable bulk trash
+        const res = await fetch(`${db.base}/rest/v1/rpc/bulk_trash_entries`, {
+          method: 'POST',
+          headers: db._headers({}, userToken),
+          body: JSON.stringify({ p_ids: ids }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        // Fallback to standard patch for other bulk updates (pinning, etc)
+        const filter = `id=in.(${ids.join(',')})`;
+        await db.patch('entries', filter, updateData);
+      }
+    } catch (err) {
+      console.error('[bulk] failed:', err.message);
+      return json({ error: 'Bulk update failed', details: err.message }, 400, request, env);
+    }
 
     return json({ updated: true, count: ids.length }, 200, request, env);
   }
 
   // ── DELETE /entries/:id ───────────────────────────────────────────────────
   if (request.method === 'DELETE' && id) {
-    // Verify ownership before update (since we bypass RLS)
+    // Verify ownership
     const existing = await db.selectOne('entries', id);
-    if (!existing || existing.user_id !== user.id) return json({ error: 'Unauthorized' }, 401, request, env);
+    if (!existing) return json({ error: 'Entry not found' }, 404, request, env);
+    
+    if (existing.user_id && existing.user_id !== user.id) {
+       return json({ error: 'Unauthorized' }, 401, request, env);
+    }
 
     await db.update('entries', id, { 
       status: 'trashed',

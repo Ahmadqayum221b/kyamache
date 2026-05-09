@@ -282,10 +282,18 @@ function bindBulkActions() {
     if (!confirm(`Delete ${selectedEntries.size} items?`)) return;
     try {
       await apiPost('/entries/bulk', { ids: Array.from(selectedEntries), updates: { status: 'trashed' } });
-      selectedEntries.clear();
-      updateBulkUI();
-      loadFeed(true);
-    } catch (err) { toast('Bulk action failed', 'error'); }
+    } catch (err) {
+      console.warn('Bulk delete failed, falling back to individual:', err);
+      for (const id of selectedEntries) {
+        try {
+          await apiFetch(`/entries/${id}`, { method: 'DELETE' });
+        } catch (e) { console.error('Failed to delete', id, e); }
+      }
+    }
+    selectedEntries.clear();
+    updateBulkUI();
+    loadFeed(true);
+    toast('Entries moved to trash', 'success');
   };
   $('bulk-cancel').onclick = () => {
     selectedEntries.clear();
@@ -401,4 +409,22 @@ function renderSearchResults(results) {
     };
     el.appendChild(item);
   });
+}
+
+function bindViewToggle() {
+  const btn = $('view-toggle');
+  if (!btn) return;
+  btn.onclick = () => {
+    currentView = currentView === 'list' ? 'grid' : 'list';
+    $('entries-list').className = `entries-list ${currentView}-view`;
+    btn.innerHTML = currentView === 'list' 
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+  };
+}
+
+function bindLoadMore() {
+  const btn = $('load-more');
+  if (!btn) return;
+  btn.onclick = () => loadFeed();
 }

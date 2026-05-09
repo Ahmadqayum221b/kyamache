@@ -1,0 +1,8 @@
+{
+  "name": "kymacache-root",
+  "version": "1.0.0",
+  "description": "Kymacache - Unified Development",
+  "scripts": {
+    "dev": "npx -y concurrently \"cd worker && npm run dev\" \"cd pwa && npx serve .\""
+  }
+}
