@@ -65,14 +65,14 @@ async function initAuth() {
   updateUser(session?.user);
   supabase.auth.onAuthStateChange((_event, session) => updateUser(session?.user));
 
-  $('auth-form').addEventListener('submit', handleAuthSubmit);
+  $('auth-submit').addEventListener('click', handleAuthSubmit);
   
   $('auth-toggle-link').addEventListener('click', e => {
     e.preventDefault();
     const title = $('auth-title');
     const submit = $('auth-submit');
     const toggle = $('auth-toggle-link');
-    if (submit.textContent === 'Sign In') {
+    if (submit.textContent.includes('In')) {
       title.textContent = 'Create account';
       submit.textContent = 'Sign Up';
       toggle.textContent = 'Sign In';
@@ -83,8 +83,9 @@ async function initAuth() {
     }
   });
 
-  $('google-auth-btn').addEventListener('click', () => {
-    supabase.auth.signInWithOAuth({ provider: 'google' });
+  $('google-auth-btn').addEventListener('click', async () => {
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    if (error) toast(error.message, 'error');
   });
 
   $('user-profile').addEventListener('click', async () => { if (confirm('Sign out?')) await supabase.auth.signOut(); });
@@ -104,14 +105,15 @@ function updateUser(newUser) {
 }
 
 async function handleAuthSubmit(e) {
-  e.preventDefault();
+  if (e) e.preventDefault();
   if (!supabase) { toast('Auth system not ready', 'error'); return; }
   
   const email = $('auth-email').value.trim();
   const password = $('auth-password').value;
-  if (!email || !password) { toast('Email and password required', 'error'); return; }
+  if (!email || !password) { toast('Please enter email and password', 'error'); return; }
   
-  const isSignUp = $('auth-submit').textContent === 'Sign Up';
+  const btn = $('auth-submit');
+  const isSignUp = btn.textContent.includes('Up');
   const authMode = isSignUp ? 'signup' : 'signin';
 
   console.log('[auth] Attempting...', authMode, email);
