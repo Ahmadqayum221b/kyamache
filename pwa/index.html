@@ -11,6 +11,12 @@
   <title>Kymacache</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    input::placeholder, textarea::placeholder {
+      color: var(--muted);
+      opacity: 0.8;
+    }
+  </style>
 </head>
 <body>
 
@@ -171,8 +177,8 @@
     <div class="auth-card">
       <h2 id="auth-title">Welcome back</h2>
       <form id="auth-form">
-        <input type="email" id="auth-email" placeholder="Email" required>
-        <input type="password" id="auth-password" placeholder="Password" required>
+        <input type="email" id="auth-email" placeholder="Email" required autocomplete="email">
+        <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password">
         <button type="submit" class="primary-btn" id="auth-submit">Sign In</button>
       </form>
       <div class="auth-sep"><span>OR</span></div>

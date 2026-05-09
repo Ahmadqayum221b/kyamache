@@ -26,8 +26,8 @@ let selectedEntries = new Set();
 let currentEditingEntry = null;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
-const $$ = sel => document.querySelectorAll(sel);
+const $ = (id) => document.getElementById(id);
+const $$ = (sel) => document.querySelectorAll(sel);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -103,17 +103,28 @@ async function handleAuthSubmit(e) {
   e.preventDefault();
   const email = $('auth-email').value;
   const password = $('auth-password').value;
-  const isSignUp = $('auth-submit').textContent === 'Sign Up';
+  const authMode = $('auth-submit').textContent === 'Sign Up' ? 'signup' : 'signin';
+
+  console.log('[auth] Submitting...', authMode, email);
+  const btn = $('auth-submit');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
 
   try {
-    const { error, data } = isSignUp
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) throw error;
-    if (isSignUp) toast('Check your email for confirmation!', 'success');
-  } catch (err) { 
-    toast(err.message, 'error'); 
+    if (authMode === 'signin') {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) toast(error.message, 'error');
+    } else {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) toast(error.message, 'error');
+      else toast('Check your email for the confirmation link!', 'success');
+    }
+  } catch (err) {
+    toast('An unexpected error occurred', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
