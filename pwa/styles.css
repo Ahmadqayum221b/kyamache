@@ -128,7 +128,19 @@ body {
 }
 .auth-card h2 { font-size: 24px; font-family: var(--font-disp); margin-bottom: 24px; }
 .auth-card input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-sidebar); }
-.auth-card .primary-btn { width: 100%; }
+.auth-card .primary-btn { width: 100%; margin-bottom: 16px; }
+.auth-sep { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--muted); font-size: 12px; font-family: var(--font-mono); }
+.auth-sep::before, .auth-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.secondary-btn { 
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+  cursor: pointer; font-weight: 500; color: var(--text); transition: var(--transition);
+}
+.secondary-btn:hover { background: var(--bg-sidebar); border-color: var(--muted); }
+
+.auth-toggle { margin-top: 24px; font-size: 14px; color: var(--muted); }
+.auth-toggle a { color: var(--accent); text-decoration: none; font-weight: 600; }
 
 .col-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
 
