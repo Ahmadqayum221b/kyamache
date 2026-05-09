@@ -25,6 +25,10 @@ let collections = [];
 let selectedEntries = new Set();
 let currentEditingEntry = null;
 
+// ── Error Handling ────────────────────────────────────────────────────────────
+window.onerror = (msg, url, line) => toast(`Error: ${msg} at ${line}`, 'error');
+window.onunhandledrejection = (e) => toast(`Promise Error: ${e.reason}`, 'error');
+
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -101,11 +105,16 @@ function updateUser(newUser) {
 
 async function handleAuthSubmit(e) {
   e.preventDefault();
-  const email = $('auth-email').value;
+  if (!supabase) { toast('Auth system not ready', 'error'); return; }
+  
+  const email = $('auth-email').value.trim();
   const password = $('auth-password').value;
-  const authMode = $('auth-submit').textContent === 'Sign Up' ? 'signup' : 'signin';
+  if (!email || !password) { toast('Email and password required', 'error'); return; }
+  
+  const isSignUp = $('auth-submit').textContent === 'Sign Up';
+  const authMode = isSignUp ? 'signup' : 'signin';
 
-  console.log('[auth] Submitting...', authMode, email);
+  console.log('[auth] Attempting...', authMode, email);
   const btn = $('auth-submit');
   const originalText = btn.textContent;
   btn.disabled = true;
