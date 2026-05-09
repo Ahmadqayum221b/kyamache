@@ -34,7 +34,7 @@ export async function getUser(request, env) {
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.warn('[auth] Token verification failed:', res.status, errorText);
+      console.warn(`[auth] Token verification failed for ${env.SUPABASE_URL}:`, res.status, errorText);
       return null;
     }
 

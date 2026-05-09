@@ -71,6 +71,41 @@ export async function handleEntries(request, env, ctx, url, user) {
     return json(filtered, 200, request, env);
   }
 
+  // ── POST /entries/bulk ──────────────────────────────────────────────────
+  if (request.method === 'POST' && url.pathname === '/entries/bulk') {
+    const { ids, updates } = await request.json().catch(() => ({}));
+    if (!Array.isArray(ids) || !ids.length) return json({ error: 'ids array required' }, 400, request, env);
+
+    // Filter allowed updates
+    const allowed = ['is_pinned', 'is_starred', 'status', 'collection_id'];
+    const updateData = {};
+    for (const key of allowed) {
+      if (updates && key in updates) updateData[key] = updates[key];
+    }
+
+    // Use our new RPC for "trash" action if that's what's requested
+    try {
+      if (updates && updates.status === 'trashed') {
+        // Special case: use RPC for reliable bulk trash
+        const res = await fetch(`${db.base}/rest/v1/rpc/bulk_trash_entries`, {
+          method: 'POST',
+          headers: db._headers({}, userToken),
+          body: JSON.stringify({ p_ids: ids }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        // Fallback to standard patch for other bulk updates (pinning, etc)
+        const filter = `id=in.(${ids.join(',')})`;
+        await db.patch('entries', filter, updateData);
+      }
+    } catch (err) {
+      console.error('[bulk] failed:', err.message);
+      return json({ error: 'Bulk update failed', details: err.message }, 400, request, env);
+    }
+
+    return json({ updated: true, count: ids.length }, 200, request, env);
+  }
+
   // ── POST /entries ─────────────────────────────────────────────────────────
   if (request.method === 'POST') {
     let body;
@@ -135,40 +170,6 @@ export async function handleEntries(request, env, ctx, url, user) {
     return json(updated, 200, request, env);
   }
 
-  // ── POST /entries/bulk ──────────────────────────────────────────────────
-  if (request.method === 'POST' && url.pathname === '/entries/bulk') {
-    const { ids, updates } = await request.json().catch(() => ({}));
-    if (!Array.isArray(ids) || !ids.length) return json({ error: 'ids array required' }, 400, request, env);
-
-    // Filter allowed updates
-    const allowed = ['is_pinned', 'is_starred', 'status', 'collection_id'];
-    const updateData = {};
-    for (const key of allowed) {
-      if (key in updates) updateData[key] = updates[key];
-    }
-
-    // Use our new RPC for "trash" action if that's what's requested
-    try {
-      if (updateData.status === 'trashed') {
-        // Special case: use RPC for reliable bulk trash
-        const res = await fetch(`${db.base}/rest/v1/rpc/bulk_trash_entries`, {
-          method: 'POST',
-          headers: db._headers({}, userToken),
-          body: JSON.stringify({ p_ids: ids }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      } else {
-        // Fallback to standard patch for other bulk updates (pinning, etc)
-        const filter = `id=in.(${ids.join(',')})`;
-        await db.patch('entries', filter, updateData);
-      }
-    } catch (err) {
-      console.error('[bulk] failed:', err.message);
-      return json({ error: 'Bulk update failed', details: err.message }, 400, request, env);
-    }
-
-    return json({ updated: true, count: ids.length }, 200, request, env);
-  }
 
   // ── DELETE /entries/:id ───────────────────────────────────────────────────
   if (request.method === 'DELETE' && id) {
@@ -176,8 +177,11 @@ export async function handleEntries(request, env, ctx, url, user) {
     const existing = await db.selectOne('entries', id);
     if (!existing) return json({ error: 'Entry not found' }, 404, request, env);
     
-    if (existing.user_id && existing.user_id !== user.id) {
-       return json({ error: 'Unauthorized' }, 401, request, env);
+    console.log(`[delete] Checking ownership for ${id}: owner=${existing.user_id}, requester=${user?.id}`);
+    
+    if (existing.user_id && existing.user_id !== user?.id) {
+       console.warn(`[delete] Unauthorized: ${existing.user_id} !== ${user?.id}`);
+       return json({ error: 'Unauthorized', owner: existing.user_id, requester: user?.id }, 401, request, env);
     }
 
     await db.update('entries', id, { 

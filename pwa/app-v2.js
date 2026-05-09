@@ -91,6 +91,7 @@ function updateUser(newUser) {
   if (!user) {
     $('auth-overlay').classList.remove('hidden');
   } else {
+    console.log('[auth] Logged in as:', user.id, user.email);
     $('auth-overlay').classList.add('hidden');
     $('user-avatar').textContent = user.email[0].toUpperCase();
     loadFeed(true);
@@ -217,6 +218,9 @@ function appendEntryCard(entry) {
          <button class="card-btn star-btn ${entry.is_starred ? 'active' : ''}" onclick="toggleStar('${entry.id}', ${!entry.is_starred})">★</button>
          <button class="card-btn" onclick="openEditModal('${entry.id}')">Edit</button>
          <button class="card-btn" onclick="copyShareLink('${entry.id}')">Share</button>
+         <button class="card-btn danger-hover" onclick="deleteEntry('${entry.id}')" title="Delete">
+           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="pointer-events:none"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+         </button>
        </div>
     </div>
     <div class="entry-content">${escHtml(entry.content || entry.ai_summary || '[No content]')}</div>
@@ -244,6 +248,15 @@ async function toggleStar(id, state) {
     await apiFetch(`/entries/${id}`, { method: 'PATCH', body: JSON.stringify({ is_starred: state }) });
     loadFeed(true);
   } catch (err) { toast('Failed to star', 'error'); }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Move this entry to trash?')) return;
+  try {
+    await apiFetch(`/entries/${id}`, { method: 'DELETE' });
+    toast('Entry moved to trash', 'success');
+    loadFeed(true);
+  } catch (err) { toast('Delete failed', 'error'); }
 }
 
 function bindEditModal() {
@@ -282,18 +295,27 @@ function bindBulkActions() {
     if (!confirm(`Delete ${selectedEntries.size} items?`)) return;
     try {
       await apiPost('/entries/bulk', { ids: Array.from(selectedEntries), updates: { status: 'trashed' } });
+      toast('Entries moved to trash', 'success');
+      selectedEntries.clear();
+      updateBulkUI();
+      loadFeed(true);
     } catch (err) {
       console.warn('Bulk delete failed, falling back to individual:', err);
+      let failed = 0;
       for (const id of selectedEntries) {
         try {
           await apiFetch(`/entries/${id}`, { method: 'DELETE' });
-        } catch (e) { console.error('Failed to delete', id, e); }
+        } catch (e) { failed++; console.error('Failed to delete', id, e); }
+      }
+      if (failed < selectedEntries.size) {
+        toast(`Action completed${failed ? ` (${failed} failed)` : ''}`, failed ? 'warning' : 'success');
+        selectedEntries.clear();
+        updateBulkUI();
+        loadFeed(true);
+      } else {
+        toast('Bulk action failed', 'error');
       }
     }
-    selectedEntries.clear();
-    updateBulkUI();
-    loadFeed(true);
-    toast('Entries moved to trash', 'success');
   };
   $('bulk-cancel').onclick = () => {
     selectedEntries.clear();
@@ -330,6 +352,8 @@ async function handleCapture() {
 async function apiFetch(path, options = {}) {
   const session = await supabase?.auth.getSession();
   const token = session?.data?.session?.access_token;
+  if (!token) console.warn('[api] No auth token found for', path);
+  
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -374,6 +398,7 @@ function registerServiceWorker() {
 window.$ = $; // for inline onclicks
 window.openEditModal = openEditModal;
 window.toggleStar = toggleStar;
+window.deleteEntry = deleteEntry;
 window.copyShareLink = copyShareLink;
 window.openNewCollectionModal = openNewCollectionModal;
 
