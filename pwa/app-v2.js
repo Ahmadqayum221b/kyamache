@@ -368,3 +368,37 @@ window.openEditModal = openEditModal;
 window.toggleStar = toggleStar;
 window.copyShareLink = copyShareLink;
 window.openNewCollectionModal = openNewCollectionModal;
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function bindSearch() {
+  const input = $('search-input');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    clearTimeout(searchDebounceId);
+    const q = input.value.trim();
+    if (!q) { $('search-results').classList.add('hidden'); return; }
+    searchDebounceId = setTimeout(async () => {
+      try {
+        const data = await apiFetch(`/search?q=${encodeURIComponent(q)}&limit=5`);
+        renderSearchResults(data.results || []);
+      } catch { renderSearchResults([]); }
+    }, 300);
+  });
+}
+
+function renderSearchResults(results) {
+  const el = $('search-results');
+  el.innerHTML = '';
+  el.classList.toggle('hidden', results.length === 0);
+  results.forEach(entry => {
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+    item.style = 'padding:10px; border-bottom:1px solid var(--border); cursor:pointer; font-size:13px;';
+    item.innerHTML = `<div class="sr-content">${escHtml(entry.content || entry.ai_summary)}</div>`;
+    item.onclick = () => {
+      el.classList.add('hidden');
+      openEditModal(entry.id);
+    };
+    el.appendChild(item);
+  });
+}

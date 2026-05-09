@@ -23,9 +23,10 @@ export function json(data, status = 200, request = null, env = {}) {
     // Whitelist: Allow localhost in dev, or env.FRONTEND_URL
     if (origin) {
       const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
+      const isVercel = origin.includes('.vercel.app');
       const isAllowed = env.FRONTEND_URL && origin === env.FRONTEND_URL;
       
-      if (isLocal || isAllowed || !env.FRONTEND_URL) {
+      if (isLocal || isVercel || isAllowed || !env.FRONTEND_URL) {
         headers['Access-Control-Allow-Origin'] = origin;
       } else {
         headers['Access-Control-Allow-Origin'] = env.FRONTEND_URL;
