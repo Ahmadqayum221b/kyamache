@@ -179,7 +179,7 @@
       <form id="auth-form">
         <input type="email" id="auth-email" placeholder="Email" required autocomplete="email">
         <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password">
-        <button type="submit" class="primary-btn" id="auth-submit">Sign In</button>
+        <button type="submit" class="primary-btn" id="auth-submit" onclick="handleAuthSubmit(event)">Sign In</button>
       </form>
       <div class="auth-sep"><span>OR</span></div>
       <button class="secondary-btn" id="google-auth-btn">
@@ -211,6 +211,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/app-v2.js" type="module"></script>
+<script src="/app-v2.js"></script>
 </body>
 </html>

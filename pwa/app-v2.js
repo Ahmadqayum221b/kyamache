@@ -12,6 +12,9 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabase = null;
 
+// DEBUG: Log if script starts
+console.log('[debug] app-v2.js starting...');
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let user = null;
 let currentTab = 'text';
@@ -69,9 +72,9 @@ async function initAuth() {
   const authForm = $('auth-form');
   const authSubmit = $('auth-submit');
   if (authForm) authForm.addEventListener('submit', handleAuthSubmit);
-  if (authSubmit) authSubmit.addEventListener('click', (e) => {
-    // Fallback for some mobile browsers where submit event is flaky
-    if (authForm && !authForm.reportValidity()) return;
+  if (authSubmit) authSubmit.addEventListener('click', function(e) {
+    console.log('[debug] Auth button clicked');
+    if (authForm && authForm.reportValidity && !authForm.reportValidity()) return;
     handleAuthSubmit(e);
   });
   
@@ -105,9 +108,15 @@ async function initAuth() {
 
   // Now check session
   if (supabase) {
-    const { data: { session } } = await supabase.auth.getSession();
-    updateUser(session?.user);
-    supabase.auth.onAuthStateChange((_event, session) => updateUser(session?.user));
+    console.log('[debug] Initializing session check...');
+    supabase.auth.getSession().then(function(res) {
+      var session = res && res.data && res.data.session;
+      updateUser(session ? session.user : null);
+    });
+    supabase.auth.onAuthStateChange(function(_event, session) {
+      console.log('[debug] Auth state changed');
+      updateUser(session ? session.user : null);
+    });
   }
 }
 
@@ -118,7 +127,9 @@ function updateUser(newUser) {
   } else {
     console.log('[auth] Logged in as:', user.id, user.email);
     $('auth-overlay').classList.add('hidden');
-    $('user-avatar').textContent = user.email[0].toUpperCase();
+    if (user.email) {
+      $('user-avatar').textContent = user.email[0].toUpperCase();
+    }
     loadFeed(true);
     loadCollections();
   }
@@ -428,7 +439,8 @@ function toast(msg, type = '') {
 }
 
 function escHtml(str) {
-  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  if (str === null || str === undefined) str = '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function formatRelative(iso) {
@@ -450,6 +462,7 @@ window.toggleStar = toggleStar;
 window.deleteEntry = deleteEntry;
 window.copyShareLink = copyShareLink;
 window.openNewCollectionModal = openNewCollectionModal;
+window.handleAuthSubmit = handleAuthSubmit; // Make it global!
 
 // ── Search ────────────────────────────────────────────────────────────────────
 function bindSearch() {
