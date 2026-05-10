@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('[init] App loading...');
   
   let retries = 0;
-  while (!window.supabase && retries < 50) {
+  while (!window.supabase && retries < 100) { // Increased to 10s
     await new Promise(r => setTimeout(r, 100));
     retries++;
   }
@@ -60,14 +60,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function initAuth() {
-  if (!supabase) return;
-  const { data: { session } } = await supabase.auth.getSession();
-  updateUser(session?.user);
-  supabase.auth.onAuthStateChange((_event, session) => updateUser(session?.user));
+  if (!supabase) {
+    console.error('[auth] Supabase client not initialized');
+    // Still bind listeners if elements exist, handle error in handler
+  }
 
-  $('auth-form').addEventListener('submit', handleAuthSubmit);
+  // Bind listeners IMMEDIATELY, don't wait for session
+  const authForm = $('auth-form');
+  const authSubmit = $('auth-submit');
+  if (authForm) authForm.addEventListener('submit', handleAuthSubmit);
+  if (authSubmit) authSubmit.addEventListener('click', (e) => {
+    // Fallback for some mobile browsers where submit event is flaky
+    if (authForm && !authForm.reportValidity()) return;
+    handleAuthSubmit(e);
+  });
   
-  $('auth-toggle-link').addEventListener('click', e => {
+  const toggleLink = $('auth-toggle-link');
+  if (toggleLink) toggleLink.addEventListener('click', e => {
     e.preventDefault();
     const title = $('auth-title');
     const submit = $('auth-submit');
@@ -83,12 +92,23 @@ async function initAuth() {
     }
   });
 
-  $('google-auth-btn').addEventListener('click', async () => {
+  const googleBtn = $('google-auth-btn');
+  if (googleBtn) googleBtn.addEventListener('click', async () => {
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
     if (error) toast(error.message, 'error');
   });
 
-  $('user-profile').addEventListener('click', async () => { if (confirm('Sign out?')) await supabase.auth.signOut(); });
+  const userProfile = $('user-profile');
+  if (userProfile) userProfile.addEventListener('click', async () => { 
+    if (confirm('Sign out?')) await supabase.auth.signOut(); 
+  });
+
+  // Now check session
+  if (supabase) {
+    const { data: { session } } = await supabase.auth.getSession();
+    updateUser(session?.user);
+    supabase.auth.onAuthStateChange((_event, session) => updateUser(session?.user));
+  }
 }
 
 function updateUser(newUser) {
@@ -106,13 +126,15 @@ function updateUser(newUser) {
 
 async function handleAuthSubmit(e) {
   if (e) e.preventDefault();
+  const btn = $('auth-submit');
+  if (btn.disabled) return; // Prevent double submission
+  
   if (!supabase) { toast('Auth system not ready', 'error'); return; }
   
   const email = $('auth-email').value.trim();
   const password = $('auth-password').value;
   if (!email || !password) { toast('Please enter email and password', 'error'); return; }
   
-  const btn = $('auth-submit');
   const isSignUp = btn.textContent.includes('Up');
   const authMode = isSignUp ? 'signup' : 'signin';
   const originalText = btn.textContent;
