@@ -10,7 +10,7 @@ const API_BASE = location.hostname === 'localhost' || location.hostname === '127
 const SUPABASE_URL = 'https://lnbpgnilxaaodowbetgg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuYnBnbmlseGFhb2Rvd2JldGdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzY0MDMsImV4cCI6MjA5MjgxMjQwM30.poQH_5Rol_dcdKVLKUa6d__YpZhQ4V4KtNmu6vGFfh8';
 
-let supabase = null;
+var db = null;
 
 // DEBUG: Log if script starts
 console.log('[debug] app-v2.js starting...');
@@ -46,8 +46,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     retries++;
   }
 
+  console.log('[debug] window.supabase:', typeof window.supabase);
   if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } else if (window.supabasejs) {
+    db = window.supabasejs.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
 
   initAuth();
@@ -63,9 +66,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function initAuth() {
-  if (!supabase) {
-    console.error('[auth] Supabase client not initialized');
-    // Still bind listeners if elements exist, handle error in handler
+  if (!db) {
+    console.error('[auth] Database client not initialized. window.supabase is:', typeof window.supabase);
   }
 
   // Bind listeners IMMEDIATELY, don't wait for session
@@ -96,24 +98,26 @@ async function initAuth() {
   });
 
   const googleBtn = $('google-auth-btn');
-  if (googleBtn) googleBtn.addEventListener('click', async () => {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-    if (error) toast(error.message, 'error');
+  if (googleBtn) googleBtn.addEventListener('click', function() {
+    if (!db) { toast('Auth system not ready', 'error'); return; }
+    db.auth.signInWithOAuth({ provider: 'google' }).then(function(res) {
+      if (res.error) toast(res.error.message, 'error');
+    });
   });
 
   const userProfile = $('user-profile');
-  if (userProfile) userProfile.addEventListener('click', async () => { 
-    if (confirm('Sign out?')) await supabase.auth.signOut(); 
+  if (userProfile) userProfile.addEventListener('click', function() { 
+    if (db && confirm('Sign out?')) db.auth.signOut(); 
   });
 
   // Now check session
-  if (supabase) {
+  if (db) {
     console.log('[debug] Initializing session check...');
-    supabase.auth.getSession().then(function(res) {
+    db.auth.getSession().then(function(res) {
       var session = res && res.data && res.data.session;
       updateUser(session ? session.user : null);
     });
-    supabase.auth.onAuthStateChange(function(_event, session) {
+    db.auth.onAuthStateChange(function(_event, session) {
       console.log('[debug] Auth state changed');
       updateUser(session ? session.user : null);
     });
@@ -140,7 +144,7 @@ async function handleAuthSubmit(e) {
   const btn = $('auth-submit');
   if (btn.disabled) return; // Prevent double submission
   
-  if (!supabase) { toast('Auth system not ready', 'error'); return; }
+  if (!db) { toast('Auth system not ready', 'error'); return; }
   
   const email = $('auth-email').value.trim();
   const password = $('auth-password').value;
@@ -156,12 +160,18 @@ async function handleAuthSubmit(e) {
 
   try {
     if (authMode === 'signin') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) toast(error.message, 'error');
+      db.auth.signInWithPassword({ email: email, password: password }).then(function(res) {
+        if (res.error) toast(res.error.message, 'error');
+        btn.disabled = false;
+        btn.textContent = originalText;
+      });
     } else {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) toast(error.message, 'error');
-      else toast('Check your email for the confirmation link!', 'success');
+      db.auth.signUp({ email: email, password: password }).then(function(res) {
+        if (res.error) toast(res.error.message, 'error');
+        else toast('Check your email for the confirmation link!', 'success');
+        btn.disabled = false;
+        btn.textContent = originalText;
+      });
     }
   } catch (err) {
     toast('An unexpected error occurred', 'error');
@@ -409,19 +419,20 @@ async function handleCapture() {
 }
 
 // ── API Helpers ────────────────────────────────────────────────────────────────
-async function apiFetch(path, options = {}) {
-  const session = await supabase?.auth.getSession();
-  const token = session?.data?.session?.access_token;
+async function apiFetch(path, options) {
+  if (options === undefined) options = {};
+  var token = null;
+  if (db && db.auth) {
+    var sessionRes = await db.auth.getSession();
+    token = sessionRes && sessionRes.data && sessionRes.data.session && sessionRes.data.session.access_token;
+  }
   if (!token) console.warn('[api] No auth token found for', path);
   
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      ...(options.headers || {})
-    }
-  });
+  var res = await fetch(API_BASE + path, Object.assign({}, options, {
+    headers: Object.assign({
+      'Content-Type': 'application/json'
+    }, token ? { 'Authorization': 'Bearer ' + token } : {}, options.headers || {})
+  }));
   if (!res.ok) throw new Error('API failed');
   return res.json();
 }
