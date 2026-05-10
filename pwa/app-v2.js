@@ -65,7 +65,7 @@ async function initAuth() {
   updateUser(session?.user);
   supabase.auth.onAuthStateChange((_event, session) => updateUser(session?.user));
 
-  $('auth-submit').addEventListener('click', handleAuthSubmit);
+  $('auth-form').addEventListener('submit', handleAuthSubmit);
   
   $('auth-toggle-link').addEventListener('click', e => {
     e.preventDefault();
@@ -115,10 +115,9 @@ async function handleAuthSubmit(e) {
   const btn = $('auth-submit');
   const isSignUp = btn.textContent.includes('Up');
   const authMode = isSignUp ? 'signup' : 'signin';
+  const originalText = btn.textContent;
 
   console.log('[auth] Attempting...', authMode, email);
-  const btn = $('auth-submit');
-  const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Processing...';
 
