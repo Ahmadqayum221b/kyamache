@@ -12,10 +12,12 @@ export async function handleCollections(request, env, ctx, url, user) {
   const db = makeSupabase(env);
   const parts = url.pathname.split('/').filter(Boolean);
   const id = parts[1];
+  const authHeader = request.headers.get('Authorization');
+  const userToken  = authHeader?.split(' ')[1];
 
   // ── GET /collections ───────────────────────────────────────────────────────
   if (request.method === 'GET') {
-    const data = await db.select('collections', { order: 'name.asc' }, null, user.id);
+    const data = await db.select('collections', { order: 'name.asc' }, userToken, user.id);
     return json(data, 200, request, env);
   }
 

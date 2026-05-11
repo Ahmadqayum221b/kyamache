@@ -29,7 +29,7 @@ export async function handleSearch(request, env, ctx, url, user) {
   const userToken  = authHeader.split(' ')[1]; // Verified by index.js
 
   // Use service key to bypass broken RLS recursion, but filter by user.id explicitly
-  const results = await db.search('entries', q, labels, null, user.id);
+  const results = await db.search('entries', q, labels, userToken, user.id);
   return json({
     query:   q,
     labels,

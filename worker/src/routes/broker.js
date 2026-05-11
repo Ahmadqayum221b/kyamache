@@ -24,7 +24,7 @@ export async function handleBroker(request, env, ctx, url, user) {
 
     // Build unique key
     const now    = new Date();
-    const folder = `uploads/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const folder = `uploads/${user.id}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
     const uid    = crypto.randomUUID();
     const name   = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key    = `${folder}/${uid}/${name}`;
@@ -53,6 +53,7 @@ export async function handleBroker(request, env, ctx, url, user) {
     
     // Create the entry in Supabase
     const entry = await db.insert('entries', {
+      user_id:      user.id,
       content:      filename,
       content_type: mime.startsWith('image/') ? 'image' : 'file',
       file_url:     `${env.B2_PUBLIC_URL}/${file_key}`,

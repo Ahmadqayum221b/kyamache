@@ -26,7 +26,7 @@ export async function handleEntries(request, env, ctx, url, user) {
   // ── GET /entries/:id ────────────────────────────────────────────────────
   if (request.method === 'GET' && id) {
     // If it's a public request (no user), check is_public
-    const entry = await db.selectOne('entries', id);
+    const entry = await db.selectOne('entries', id, userToken);
     if (!entry) return json({ error: 'Entry not found' }, 404, request, env);
 
     // Allow if owner OR legacy (null user_id) OR public
@@ -59,16 +59,13 @@ export async function handleEntries(request, env, ctx, url, user) {
       }
     }
 
-    // Fetch entries where user_id matches OR is legacy (null)
+    // Fetch entries where user_id matches
     const entries = await db.select('entries', { 
       ...params,
-      order: 'is_pinned.desc,created_at.desc' // PINNING Support
-    }, null, null); // We will filter manually if needed, or update select to support OR
+      order: 'is_pinned.desc,created_at.desc'
+    }, userToken, user.id); 
     
-    // Filtering for security (in-worker)
-    const filtered = entries.filter(e => e.user_id === user.id || e.user_id === null || e.is_public);
-    
-    return json(filtered, 200, request, env);
+    return json(entries, 200, request, env);
   }
 
   // ── POST /entries/bulk ──────────────────────────────────────────────────
