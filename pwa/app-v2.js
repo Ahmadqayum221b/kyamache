@@ -412,7 +412,7 @@ function bindCapture() {
       $$('.capture-tabs .tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       $$('.tab-content').forEach(c => c.classList.remove('active'));
-      $(`[data-content="${currentTab}"]`).classList.add('active');
+      document.querySelector(`[data-content="${currentTab}"]`).classList.add('active');
     });
   });
 
