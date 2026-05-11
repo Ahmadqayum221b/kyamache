@@ -13,7 +13,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 var db = null;
 
 // DEBUG: Log if script starts
-console.log('[debug] app-v2.js starting...');
+console.log('[debug] app-v2.js starting... v3.1');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let user = null;

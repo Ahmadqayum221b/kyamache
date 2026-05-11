@@ -148,9 +148,9 @@
         <button class="close-btn" id="capture-close">&times;</button>
       </div>
       <div class="capture-tabs">
-        <button class="tab active" data-tab="text">Text</button>
-        <button class="tab" data-tab="url">URL</button>
-        <button class="tab" data-tab="file">File</button>
+        <button type="button" class="tab active" data-tab="text">Text</button>
+        <button type="button" class="tab" data-tab="url">URL</button>
+        <button type="button" class="tab" data-tab="file">File</button>
       </div>
       <div class="tab-content active" data-content="text">
         <textarea id="text-input" placeholder="Capture a thought..." rows="6"></textarea>
@@ -161,7 +161,7 @@
       </div>
       <div class="tab-content" data-content="file">
         <label class="file-drop" id="file-drop">
-          <input type="file" id="file-input" multiple hidden>
+          <input type="file" id="file-input" multiple style="position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px;">
           <span>Drop files here</span>
         </label>
       </div>

@@ -5,7 +5,7 @@
  * - Background sync for offline captures
  */
 
-const CACHE_NAME  = 'kymacache-v2';
+const CACHE_NAME  = 'kymacache-v3';
 const SHELL_FILES = ['/', '/index.html', '/app-v2.js', '/styles.css', '/manifest.json'];
 
 // ── Install: cache app shell ─────────────────────────────────────────────────
