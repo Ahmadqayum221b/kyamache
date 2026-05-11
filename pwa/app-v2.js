@@ -404,36 +404,118 @@ function updateBulkUI() {
 function bindCapture() {
   $('capture-close').onclick = () => $('capture-overlay').classList.add('hidden');
   $('capture-btn').onclick = handleCapture;
-  // (Simplified tab logic here or keep existing)
+  
+  // Tab Switching
+  $$('.capture-tabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      currentTab = tab.dataset.tab;
+      $$('.capture-tabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      $$('.tab-content').forEach(c => c.classList.remove('active'));
+      $(`[data-content="${currentTab}"]`).classList.add('active');
+    });
+  });
+
+  // File Drop Handling
+  const fileDrop = $('file-drop');
+  const fileInput = $('file-input');
+  if (fileDrop && fileInput) {
+    fileDrop.onclick = () => fileInput.click();
+    fileInput.onchange = () => {
+      const files = fileInput.files;
+      if (files.length > 0) {
+        fileDrop.querySelector('span').textContent = files.length === 1 ? files[0].name : `${files.length} files selected`;
+      }
+    };
+  }
 }
 
 async function handleCapture() {
-  const content = $('text-input').value.trim();
-  if (!content) return;
+  const btn = $('capture-btn');
+  const status = $('capture-status');
+  if (btn.disabled) return;
+
   try {
-    await apiPost('/entries', { content, content_type: 'text' });
+    if (currentTab === 'text') {
+      const content = $('text-input').value.trim();
+      if (!content) return;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      await apiPost('/entries', { content, content_type: 'text' });
+    } 
+    else if (currentTab === 'url') {
+      const url = $('url-input').value.trim();
+      const note = $('url-note').value.trim();
+      if (!url) { toast('Please enter a URL', 'warning'); return; }
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      await apiPost('/entries', { content: url, source: note || null, content_type: 'url' });
+    } 
+    else if (currentTab === 'file') {
+      const files = $('file-input').files;
+      if (!files.length) { toast('Please select a file', 'warning'); return; }
+      
+      btn.disabled = true;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        btn.textContent = `Uploading ${i+1}/${files.length}...`;
+        status.textContent = `Uploading ${file.name}...`;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const res = await apiFetch('/file', { method: 'POST', body: formData });
+        await apiPost('/entries', {
+          content: file.name,
+          content_type: 'file',
+          file_url: res.file_url,
+          file_key: res.file_key,
+          source: 'pwa_upload'
+        });
+      }
+    }
+
+    // Success Cleanup
     $('capture-overlay').classList.add('hidden');
     $('text-input').value = '';
+    $('url-input').value = '';
+    $('url-note').value = '';
+    $('file-input').value = '';
+    $('file-drop').querySelector('span').textContent = 'Drop files here';
+    status.textContent = '';
+    toast('Captured!', 'success');
     loadFeed(true);
-  } catch (err) { toast('Save failed', 'error'); }
+
+  } catch (err) {
+    console.error('[capture] failed:', err);
+    toast('Save failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
 }
 
 // ── API Helpers ────────────────────────────────────────────────────────────────
-async function apiFetch(path, options) {
-  if (options === undefined) options = {};
+async function apiFetch(path, options = {}) {
   var token = null;
   if (db && db.auth) {
     var sessionRes = await db.auth.getSession();
     token = sessionRes && sessionRes.data && sessionRes.data.session && sessionRes.data.session.access_token;
   }
-  if (!token) console.warn('[api] No auth token found for', path);
   
-  var res = await fetch(API_BASE + path, Object.assign({}, options, {
-    headers: Object.assign({
-      'Content-Type': 'application/json'
-    }, token ? { 'Authorization': 'Bearer ' + token } : {}, options.headers || {})
-  }));
-  if (!res.ok) throw new Error('API failed');
+  const headers = Object.assign({}, options.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  
+  // Don't set Content-Type for FormData (browser does it with boundary)
+  if (!(options.body instanceof FormData)) {
+    if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  }
+
+  var res = await fetch(API_BASE + path, Object.assign({}, options, { headers }));
+  if (!res.ok) {
+    const errorMsg = await res.text().catch(() => 'Unknown error');
+    throw new Error(errorMsg || 'API failed');
+  }
   return res.json();
 }
 
